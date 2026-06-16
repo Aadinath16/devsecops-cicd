@@ -1,0 +1,27 @@
+# Python bytecode files
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+
+# Flask specific
+instance/
+.pytest_cache/
+
+# IDE or text editor specific
+.idea/
+.vscode/
+*.swp
+
+# macOS
+.DS_Store
+
+# Linux
+*.out
+
+# Windows
+Thumbs.db
+
+
+node_modules
