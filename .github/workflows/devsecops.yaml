@@ -1,188 +1,3 @@
-# name: Pipeline-Tooling-Dashboard
-
-# on:
-#   push:
-#     branches: [ "dev", "feat" ]
-#   pull_request:
-#     branches: [ "main" ]
-
-# env:
-#   REGISTRY: Pipeline-Tooling-Dashboard
-#   USER_NAME: adinath16
-#   IMAGE_NAME: ${{ github.repository }}
-#   IMAGE_TAG: ${{ github.sha }}
-# #   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-# #   GAR_LOCATION: us
-# #   REPO_NAME: flask-app-repo
-# #   IMAGE_NAME: flask-sql-app
-# #   CLUSTER_NAME: gke-dev
-# #   CLUSTER_LOCATION: us-central1
-
-# jobs:
-#   # STAGE 1: Free Secrets & Code Scanning
-#   static-analysis:
-#     name: Secrets & SAST (Free Core)
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout Code
-#         uses: actions/checkout@v4
-#         with:
-#           fetch-depth: 0
-
-#       # 1.1 Open-Source Secrets Detection (No token required)
-#       - name: Scan Secrets (TruffleHog OSS)
-#         uses: trufflesecurity/trufflehog@main
-#         with:
-#           path: ./
-#           base: ${{ github.event.repository.default_branch }}
-#           head: HEAD
-#           extra_args: --only-verified
-
-#       # 1.2 Open-Source Static Application Security Testing
-#       - name: Run SAST (Semgrep OSS Rules)
-#         uses: returntocorp/semgrep-action@v1
-#         with:
-#           config: p/security-audit # Uses community security auditing rulesets
-
-#   # STAGE 2: Free Dependency & Software Composition Analysis (SCA)
-#   dependency-scan:
-#     name: Dependency Scan (Trivy OSS)
-#     runs-on: ubuntu-latest
-#     needs: static-analysis
-#     steps:
-#       - name: Checkout Code
-#         uses: actions/checkout@v4
-
-#       # 2.1 Scan software repositories for vulnerable open-source libraries
-#       - name: Run Trivy Repo Scan
-#         uses: aquasecurity/trivy-action@master
-#         with:
-#           scan-type: 'fs'
-#           scan-ref: '.'
-#           exit-code: '1' # Fail pipeline if HIGH/CRITICAL CVEs exist
-#           severity: 'CRITICAL,HIGH'
-
-#   application-test:
-#     name: Application pytest
-#     runs-on: ubuntu-latest
-#     needs: dependency-scan
-#     steps:
-#         - name: Checkout code
-#           uses: actions/checkout@v4
-        
-#         - name: Running Pytest
-#           run: |
-#             pip3 install -r requirements.txt
-#             pytest --cov=app tests/
-
-#   # STAGE 3: Build, Container Scan, SBOM, and Cryptographic Sign
-#   container-security:
-#     name: Container Build & Supply Chain
-#     runs-on: ubuntu-latest
-#     needs: application-test
-#     permissions:
-#       contents: read
-#       packages: write
-#       id-token: write # Vital for free Sigstore/Cosign keyless signing
-#     steps:
-#       - name: Checkout Code
-#         uses: actions/checkout@v4
-
-#       - name: Set up Docker Buildx
-#         uses: docker/setup-buildx-action@v3
-
-#       - name: Log in to GitHub Container Registry (Free)
-#         uses: docker/login-action@v3
-#         with:
-#           registry: ${{ env.REGISTRY }}
-#           username: ${{ env.USER_NAME }}
-#           password: ${{ secrets.DOC_TOKEN }}
-
-#       # 3.1 Build locally first
-#       - name: Build Local Image
-#         uses: docker/build-push-action@v5
-#         with:
-#           context: .
-#           push: false 
-#           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-#           load: true
-
-#       # 3.2 Free Container Image Vulnerability Scanning
-#       - name: Scan Container Image (Trivy OSS)
-#         uses: aquasecurity/trivy-action@master
-#         with:
-#           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-#           format: 'table'
-#           exit-code: '1' # Blocks push if vulnerable
-#           ignore-unfixed: true # focus on what developers can actually fix
-#           vuln-type: 'os,library'
-#           severity: 'CRITICAL,HIGH'
-
-#       # 3.3 Push Secure Image (Only if step 3.2 passes)
-#       - name: Push Container Image
-#         uses: docker/build-push-action@v5
-#         with:
-#           context: .
-#           push: true
-#           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-
-#       # 3.4 Open-Source Software Bill of Materials (SBOM) Generation
-#       - name: Generate SBOM (Syft OSS)
-#         uses: anchore/sbom-action@v0
-#         with:
-#           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-#           format: spdx-json
-#           output-file: ./sbom.spdx.json
-
-#       # 3.5 Free Artifact Signing (Keyless Sigstore Architecture)
-#       - name: Install Cosign
-#         uses: sigstore/cosign-installer@v3.4.0
-
-#       - name: Cryptographically Sign Image
-#         run: |
-#           cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-
-# #   # STAGE 4: Free Infrastructure-as-Code (IaC) Scanning
-# #   iac-security:
-# #     name: Infrastructure Security (Checkov OSS)
-# #     runs-on: ubuntu-latest
-# #     steps:
-# #       - name: Checkout Code
-# #         uses: actions/checkout@v4
-
-# #       # 4.1 Scan Terraform/Kubernetes manifests using Checkov Core CLI Engine
-# #       - name: Run Checkov CLI
-# #         uses: bridgecrewio/checkov-action@master
-# #         with:
-# #           framework: terraform,kubernetes
-# #           output_format: cli
-# #           soft_fail: false # Hard stop on misconfigured code
-
-# #   # STAGE 5: Free GitOps Continuous Deployment Execution
-# #   gitops-deploy:
-# #     name: GitOps CD Delivery
-# #     runs-on: ubuntu-latest
-# #     needs: [container-security, iac-security]
-# #     if: github.ref == 'refs/heads/main'
-# #     steps:
-# #       - name: Checkout GitOps Tracking Repo
-# #         uses: actions/checkout@v4
-# #         with:
-# #           repository: 'your-org/gitops-infra-repo'
-# #           token: ${{ secrets.GITOPS_PAT }}
-
-# #       - name: Update Target Deployment Manifest
-# #         run: |
-# #           cd environments/production
-# #           sed -i 's|image: .*|image: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}'|g' deployment.yaml
-# #           git config --global user.name "free-devops-bot"
-# #           git config --global user.email "bot@company.com"
-# #           git add deployment.yaml
-# #           git commit -m "Deploy tag ${{ env.IMAGE_TAG }} via Free DevSecOps Pipeline [skip ci]"
-# #           git push origin main
-
-
-
 name: Pipeline-Tooling-Dashboard
 
 on:
@@ -192,10 +7,11 @@ on:
     branches: [ "main" ]
 
 env:
-  REGISTRY: ghcr.io
+  # REGISTRY: ghcr.io
   # Converts the repository name to lowercase safely to meet Docker standard specifications
   IMAGE_NAME: ${{ github.repository }}
   IMAGE_TAG: ${{ github.sha }}
+  DOCKERHUB_USERNAME: adinath16
 
 jobs:
   # STAGE 1: Free Secrets & Code Scanning
@@ -277,12 +93,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry (GHCR)
-        uses: docker/login-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.DOC_TOKEN }} # Automatically provided by GitHub actions, no secret setup required!
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOC_TOKEN }}
 
       # 4.1 Build locally first to verify setup
       - name: Build Local Image
@@ -290,14 +105,14 @@ jobs:
         with:
           context: .
           push: false 
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           load: true
 
       # 4.2 Free Container Image Vulnerability Scanning
       - name: Scan Container Image (Trivy OSS)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          image-ref: ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           format: 'table'
           exit-code: '1' # Blocks push if vulnerability rules fail
           ignore-unfixed: true 
@@ -310,13 +125,13 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 
       # 4.4 Open-Source Software Bill of Materials (SBOM) Generation
       - name: Generate SBOM (Syft OSS)
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          image: ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           format: spdx-json
           output-file: ./sbom.spdx.json
 
@@ -326,4 +141,4 @@ jobs:
 
       - name: Cryptographically Sign Image
         run: |
-          cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          cosign sign --yes ${{ env.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
